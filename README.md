@@ -34,8 +34,8 @@ Primeiro, clone o repositório para a sua máquina local usando Git. Se não tiv
 
 ```bash
 # Substitua pela URL correta do repositório, se aplicável
-git clone https://github.com/seu-usuario/go-dj-mixer.git
-cd go-dj-mixer
+git clone https://github.com/seu-usuario/go-dj.git
+cd go-dj
 ```
 
 ### 2\. Adicione seus Arquivos de Áudio
