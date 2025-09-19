@@ -42,7 +42,7 @@ const (
 )
 
 func (s InstrumentState) String() string {
-	return []string{"stopped", "playing", "paused"}[s]
+	return []string{"parado", "tocando", "pausado"}[s]
 }
 
 type Instrument struct {
@@ -68,12 +68,12 @@ type DJMixer struct {
 func NewInstrument(name, filename string) (*Instrument, error) {
 	f, err := os.Open(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open file %s: %w", filename, err)
+		return nil, fmt.Errorf("falha ao abrir arquivo %s: %w", filename, err)
 	}
 	streamer, _, err := wav.Decode(f)
 	if err != nil {
 		f.Close()
-		return nil, fmt.Errorf("failed to decode WAV file %s: %w", filename, err)
+		return nil, fmt.Errorf("falha ao decodificar arquivo WAV %s: %w", filename, err)
 	}
 	loopedStreamer := beep.Loop(-1, streamer)
 	ctrl := &beep.Ctrl{Streamer: loopedStreamer, Paused: true}
@@ -98,7 +98,7 @@ func NewInstrument(name, filename string) (*Instrument, error) {
 
 func (i *Instrument) SetSpeed(ratio float64) error {
 	if ratio < MinSpeedRatio || ratio > MaxSpeedRatio {
-		return fmt.Errorf("speed ratio %.2f is out of range [%.2f, %.2f]", ratio, MinSpeedRatio, MaxSpeedRatio)
+		return fmt.Errorf("proporção de velocidade %.2f está fora do intervalo [%.2f, %.2f]", ratio, MinSpeedRatio, MaxSpeedRatio)
 	}
 	i.mu.Lock()
 	i.speedRatio = ratio
@@ -107,7 +107,7 @@ func (i *Instrument) SetSpeed(ratio float64) error {
 	i.resampler.SetRatio(ratio)
 	speaker.Unlock()
 	currentBPM := BaseBPM * ratio
-	log.Printf("🎹 Tempo for '%s' set to %.1f BPM (%.2fx).", i.name, currentBPM, ratio)
+	log.Printf("🎹 Tempo para '%s' definido para %.1f BPM (%.2fx).", i.name, currentBPM, ratio)
 	return nil
 }
 
@@ -115,12 +115,12 @@ func (i *Instrument) Play() error {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	if i.state == StatePlaying {
-		return fmt.Errorf("instrument '%s' is already playing", i.name)
+		return fmt.Errorf("instrumento '%s' já está tocando", i.name)
 	}
 	i.volume.Silent = false // Unmute the track
 	i.ctrl.Paused = false
 	i.state = StatePlaying
-	log.Printf("▶️  %s started playing.", i.name)
+	log.Printf("▶️  %s começou a tocar.", i.name)
 	return nil
 }
 
@@ -128,12 +128,12 @@ func (i *Instrument) Replay() error {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	if err := i.streamer.Seek(0); err != nil {
-		return fmt.Errorf("failed to seek '%s' for replay: %w", i.name, err)
+		return fmt.Errorf("falha ao reiniciar '%s': %w", i.name, err)
 	}
 	i.volume.Silent = false // Unmute the track
 	i.ctrl.Paused = false
 	i.state = StatePlaying
-	log.Printf("🔄 %s replaying from the beginning.", i.name)
+	log.Printf("🔄 %s tocando novamente desde o início.", i.name)
 	return nil
 }
 
@@ -141,11 +141,11 @@ func (i *Instrument) Pause() error {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	if i.state != StatePlaying {
-		return fmt.Errorf("instrument '%s' is not playing (current state: %s)", i.name, i.state)
+		return fmt.Errorf("instrumento '%s' não está tocando (estado atual: %s)", i.name, i.state)
 	}
 	i.ctrl.Paused = true
 	i.state = StatePaused
-	log.Printf("⏸️  %s paused.", i.name)
+	log.Printf("⏸️  %s pausado.", i.name)
 	return nil
 }
 
@@ -158,7 +158,7 @@ func (i *Instrument) Stop() error {
 	// Stop now mutes the track but lets it play silently in the background.
 	i.volume.Silent = true
 	i.state = StateStopped
-	log.Printf("🔇 %s muted (stopped).", i.name)
+	log.Printf("🔇 %s silenciado (parado).", i.name)
 	return nil
 }
 
@@ -166,10 +166,10 @@ func (i *Instrument) SetVolume(vol float64) error {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	if vol < MinVolume || vol > MaxVolume {
-		return fmt.Errorf("volume %.2f is out of the allowed range [%.2f, %.2f]", vol, MinVolume, MaxVolume)
+		return fmt.Errorf("volume %.2f está fora do intervalo permitido [%.2f, %.2f]", vol, MinVolume, MaxVolume)
 	}
 	i.volume.Volume = vol
-	log.Printf("🔊 Set volume for %s to %.2f.", i.name, vol)
+	log.Printf("🔊 Volume de %s definido para %.2f.", i.name, vol)
 	return nil
 }
 
@@ -197,7 +197,7 @@ func (dj *DJMixer) AddInstrument(name, filepath string) error {
 	dj.mu.Lock()
 	defer dj.mu.Unlock()
 	if _, exists := dj.instruments[name]; exists {
-		return fmt.Errorf("instrument '%s' already exists", name)
+		return fmt.Errorf("instrumento '%s' já existe", name)
 	}
 	inst, err := NewInstrument(name, filepath)
 	if err != nil {
@@ -205,7 +205,7 @@ func (dj *DJMixer) AddInstrument(name, filepath string) error {
 	}
 	dj.instruments[name] = inst
 	dj.mixer.Add(inst.volume)
-	log.Printf("✅ Instrument '%s' loaded successfully.", name)
+	log.Printf("✅ Instrumento '%s' carregado com sucesso.", name)
 	return nil
 }
 
@@ -235,7 +235,7 @@ func (dj *DJMixer) GetAllInstrumentsSorted() []*Instrument {
 func (dj *DJMixer) Close() {
 	dj.mu.Lock()
 	defer dj.mu.Unlock()
-	log.Println("Shutting down all instruments...")
+	log.Println("Desligando todos os instrumentos...")
 	for _, inst := range dj.instruments {
 		_ = inst.Stop()
 		_ = inst.Close()
@@ -247,23 +247,23 @@ func (dj *DJMixer) Close() {
 
 func main() {
 	log.SetFlags(0)
-	log.Println("🎧 DJ Mixer Initializing...")
+	log.Println("🎧 Mesa de DJ Inicializando...")
 
 	shutdownChan := make(chan os.Signal, 1)
 	signal.Notify(shutdownChan, os.Interrupt, syscall.SIGTERM)
 
 	audioFiles, err := filepath.Glob(filepath.Join(AudioDir, "*.wav"))
 	if err != nil || len(audioFiles) == 0 {
-		log.Fatalf("❌ No WAV files found in '%s'. Error: %v", AudioDir, err)
+		log.Fatalf("❌ Nenhum arquivo WAV encontrado em '%s'. Erro: %v", AudioDir, err)
 	}
 
 	sampleRate, err := getSampleRateFromFile(audioFiles[0])
 	if err != nil {
-		log.Fatalf("❌ Could not determine sample rate: %v", err)
+		log.Fatalf("❌ Não foi possível determinar a taxa de amostragem: %v", err)
 	}
 
 	if err := speaker.Init(sampleRate, sampleRate.N(time.Second/10)); err != nil {
-		log.Fatalf("❌ Failed to initialize speaker: %v", err)
+		log.Fatalf("❌ Falha ao inicializar o alto-falante: %v", err)
 	}
 	defer speaker.Close()
 
@@ -273,7 +273,7 @@ func main() {
 	for _, file := range audioFiles {
 		instrumentName := strings.TrimSuffix(filepath.Base(file), ".wav")
 		if err := mixer.AddInstrument(instrumentName, file); err != nil {
-			log.Printf("⚠️  Could not load '%s': %v", instrumentName, err)
+			log.Printf("⚠️  Não foi possível carregar '%s': %v", instrumentName, err)
 		}
 	}
 
@@ -283,7 +283,7 @@ func main() {
 
 	<-shutdownChan
 
-	log.Println("\n👋 Interrupt signal received. Shutting down gracefully...")
+	log.Println("\n👋 Sinal de interrupção recebido. Desligando graciosamente...")
 }
 
 func getSampleRateFromFile(filename string) (beep.SampleRate, error) {
@@ -296,7 +296,7 @@ func getSampleRateFromFile(filename string) (beep.SampleRate, error) {
 	if err != nil {
 		return 0, err
 	}
-	log.Printf("🎵 Detected sample rate %d Hz from '%s'.", format.SampleRate, filename)
+	log.Printf("🎵 Taxa de amostragem detectada %d Hz de '%s'.", format.SampleRate, filename)
 	return format.SampleRate, nil
 }
 
@@ -307,7 +307,7 @@ func runCommandLoop(dj *DJMixer) {
 		fmt.Print("> ")
 		if !scanner.Scan() {
 			if err := scanner.Err(); err != nil && err != context.Canceled {
-				log.Printf("❌ Error reading input: %v", err)
+				log.Printf("❌ Erro ao ler entrada: %v", err)
 			}
 			return
 		}
@@ -344,67 +344,67 @@ func handleCommand(dj *DJMixer, input string) {
 			if inst, ok := dj.instruments[target]; ok {
 				err = action(inst)
 			} else {
-				err = fmt.Errorf("instrument '%s' not found", target)
+				err = fmt.Errorf("instrumento '%s' não encontrado", target)
 			}
 		} else {
 			for _, inst := range dj.instruments {
 				if e := action(inst); e != nil {
-					log.Printf("⚠️  Skipping error on bulk operation for '%s': %v", inst.name, e)
+					log.Printf("⚠️  Ignorando erro na operação em lote para '%s': %v", inst.name, e)
 				}
 			}
 		}
 		dj.mu.RUnlock()
 	case "volume", "vol":
 		if len(parts) < 3 {
-			log.Println("❌ Usage: volume <instrument> <value>")
+			log.Println("❌ Uso: volume <instrumento> <valor>")
 			return
 		}
 		target, valStr := parts[1], parts[2]
 		vol, parseErr := strconv.ParseFloat(valStr, 64)
 		if parseErr != nil {
-			log.Printf("❌ Invalid volume value: %s", valStr)
+			log.Printf("❌ Valor de volume inválido: %s", valStr)
 			return
 		}
 		if inst, ok := dj.GetInstrument(target); ok {
 			err = inst.SetVolume(vol)
 		} else {
-			err = fmt.Errorf("instrument '%s' not found", target)
+			err = fmt.Errorf("instrumento '%s' não encontrado", target)
 		}
 	case "bpm":
 		if len(parts) < 3 {
-			log.Println("❌ Usage: bpm <instrument> <value>")
+			log.Println("❌ Uso: bpm <instrumento> <valor>")
 			return
 		}
 		target, valStr := parts[1], parts[2]
 		targetBPM, parseErr := strconv.ParseFloat(valStr, 64)
 		if parseErr != nil || targetBPM <= 0 {
-			log.Printf("❌ Invalid BPM value: %s", valStr)
+			log.Printf("❌ Valor de BPM inválido: %s", valStr)
 			return
 		}
 		if inst, ok := dj.GetInstrument(target); ok {
 			ratio := targetBPM / BaseBPM
 			err = inst.SetSpeed(ratio)
 		} else {
-			err = fmt.Errorf("instrument '%s' not found", target)
+			err = fmt.Errorf("instrumento '%s' não encontrado", target)
 		}
 	case "list", "ls":
 		listInstruments(dj)
 	case "help", "h":
 		printHelp()
 	case "quit", "exit", "q":
-		log.Println("Use Ctrl+C to exit.")
+		log.Println("Use Ctrl+C para sair.")
 		p, _ := os.FindProcess(os.Getpid())
 		_ = p.Signal(os.Interrupt)
 	default:
-		log.Printf("❓ Unknown command: '%s'. Type 'help' for options.", cmd)
+		log.Printf("❓ Comando desconhecido: '%s'. Digite 'help' para ver as opções.", cmd)
 	}
 	if err != nil {
-		log.Printf("❌ Error: %v", err)
+		log.Printf("❌ Erro: %v", err)
 	}
 }
 
 func listInstruments(dj *DJMixer) {
-	fmt.Println("--- Instruments ---")
+	fmt.Println("--- Instrumentos ---")
 	for _, inst := range dj.GetAllInstrumentsSorted() {
 		state := inst.GetState()
 		icon := "🔇" // Default to muted/stopped icon
@@ -414,21 +414,21 @@ func listInstruments(dj *DJMixer) {
 			icon = "⏸️"
 		}
 		currentBPM := BaseBPM * inst.speedRatio
-		fmt.Printf(" %s %-10s (State: %-7s, Vol: %+.2f, BPM: %.1f)\n", icon, inst.name, state, inst.volume.Volume, currentBPM)
+		fmt.Printf(" %s %-10s (Estado: %-7s, Vol: %+.2f, BPM: %.1f)\n", icon, inst.name, state, inst.volume.Volume, currentBPM)
 	}
-	fmt.Println("-------------------")
+	fmt.Println("--------------------")
 }
 
 func printHelp() {
-	fmt.Println("\n--- DJ Mixer Commands ---")
-	fmt.Println("  play [name]      - Plays or resumes an instrument (or all).")
-	fmt.Println("  replay [name]    - Restarts an instrument from the beginning (or all).")
-	fmt.Println("  pause [name]     - Pauses an instrument at its current position (or all).")
-	fmt.Println("  stop [name]      - Stops an instrument by muting it (or all).")
-	fmt.Println("  volume <name> <v> - Sets instrument volume (-2.0 to 2.0).")
-	fmt.Println("  bpm <name> <v>   - Sets instrument BPM (e.g., 'bpm drums 140').")
-	fmt.Println("  list             - Shows the status of all instruments.")
-	fmt.Println("  help             - Shows this help message.")
-	fmt.Println("  quit             - Exits the program (or use Ctrl+C).")
-	fmt.Println("-------------------------")
+	fmt.Println("\n--- Comandos da Mesa de DJ ---")
+	fmt.Println("  play [nome]       - Toca ou retoma um instrumento (ou todos).")
+	fmt.Println("  replay [nome]     - Reinicia um instrumento do início (ou todos).")
+	fmt.Println("  pause [nome]      - Pausa um instrumento na posição atual (ou todos).")
+	fmt.Println("  stop [nome]       - Para um instrumento silenciando-o (ou todos).")
+	fmt.Println("  volume <nome> <v> - Define o volume do instrumento (-2.0 a 2.0).")
+	fmt.Println("  bpm <nome> <v>    - Define o BPM do instrumento (ex: 'bpm bateria 140').")
+	fmt.Println("  list             - Mostra o status de todos os instrumentos.")
+	fmt.Println("  help             - Mostra esta mensagem de ajuda.")
+	fmt.Println("  quit             - Sai do programa (ou use Ctrl+C).")
+	fmt.Println("------------------------------")
 }
